@@ -56,7 +56,7 @@ fn spawn_plumber_worker(workdir: impl AsRef<Path>, port: u16) -> FaucetResult<Ch
     let command = format!(
         r#"
         options("plumber.port" = {port})
-        plumber::pr_run(plumber::pr("plumber.R"))
+        source("plumber.R")
         "#,
     );
     let child = tokio::process::Command::new("Rscript")
