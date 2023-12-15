@@ -1,12 +1,17 @@
+mod logging;
 use crate::{
-    client::{ExclusiveBody, UpgradeStatus, WebsocketHandler},
+    client::{Client, ExclusiveBody, UpgradeStatus, WebsocketHandler},
     error::FaucetResult,
     load_balancing::LoadBalancer,
+    middleware::{Layer, Service, ServiceBuilder},
 };
+use async_trait::async_trait;
 use hyper::{body::Incoming, server::conn::http1, service::service_fn, Request, Response};
 use hyper_util::rt::TokioIo;
-use log::{error, info, warn};
-use std::{net::SocketAddr, pin::Pin};
+use std::{
+    net::{IpAddr, SocketAddr},
+    pin::Pin,
+};
 use tokio::net::TcpListener;
 
 use crate::{
@@ -59,7 +64,7 @@ impl FaucetServer {
     pub fn server_type(mut self, server_type: WorkerType) -> Self {
         self.server_type = Some(server_type);
         if server_type == WorkerType::Shiny {
-            warn!(target: "faucet", "Using server type Shiny, switching to IpHash strategy");
+            log::warn!(target: "faucet", "Using server type Shiny, switching to IpHash strategy");
             self.strategy = load_balancing::Strategy::IpHash;
         }
         self
@@ -74,12 +79,12 @@ impl FaucetServer {
             self.workdir,
         );
         workers.spawn(self.n_workers)?;
-        let targets = workers.get_socket_addrs();
-        let load_balancer = LoadBalancer::new(self.strategy, self.extractor, targets)?;
+        let targets = workers.get_workers_state();
+        let load_balancer = LoadBalancer::new(self.strategy, self.extractor, &targets)?;
 
         // Bind to the port and listen for incoming TCP connections
         let listener = TcpListener::bind(self.bind).await?;
-        info!(target: "faucet", "Listening on http://{}", self.bind);
+        log::info!(target: "faucet", "Listening on http://{}", self.bind);
         loop {
             let load_balancer = load_balancer.clone();
 
@@ -87,46 +92,91 @@ impl FaucetServer {
             let tcp = TokioIo::new(tcp);
 
             tokio::task::spawn(async move {
+                let service = ServiceBuilder::new(ProxyService)
+                    .layer(logging::LogLayer)
+                    .layer(AddStateLayer {
+                        socket_addr: client_addr,
+                        load_balancer,
+                    })
+                    .build();
                 let mut conn = http1::Builder::new()
-                    .serve_connection(
-                        tcp,
-                        service_fn(move |req: Request<Incoming>| {
-                            handle_connection(req, client_addr, load_balancer.clone())
-                        }),
-                    )
+                    .serve_connection(tcp, service_fn(|req: Request<Incoming>| service.call(req)))
                     .with_upgrades();
 
                 let conn = Pin::new(&mut conn);
 
                 if let Err(e) = conn.await {
-                    error!("Connection error: {}", e);
+                    log::error!(target: "faucet", "Connection error: {}", e);
                 }
             });
         }
     }
 }
 
-// response.
-async fn handle_connection(
-    req: Request<Incoming>,
-    client_addr: SocketAddr,
+#[derive(Clone)]
+pub(crate) struct State {
+    pub remote_addr: IpAddr,
+    pub client: Client,
+}
+
+#[derive(Clone)]
+struct AddStateService<S> {
+    inner: S,
+    socket_addr: SocketAddr,
     load_balancer: LoadBalancer,
-) -> FaucetResult<Response<ExclusiveBody>> {
-    let client = match load_balancer.get_client(&req, client_addr).await {
-        Ok(client) => client,
-        Err(e) => {
-            error!("Error getting client: {}", e);
-            return Ok(Response::builder()
-                .status(500)
-                .body(ExclusiveBody::plain_text("Internal Server Error"))
-                .unwrap());
+}
+
+#[async_trait]
+impl<S: Service + Send + Sync> Service for AddStateService<S> {
+    async fn call(&self, mut req: Request<Incoming>) -> FaucetResult<Response<ExclusiveBody>> {
+        let remote_addr = match self.load_balancer.extract_ip(&req, self.socket_addr) {
+            Ok(ip) => ip,
+            Err(e) => {
+                log::error!(target: "faucet", "Error extracting IP, verify that proxy headers are set correctly: {}", e);
+                return Err(e);
+            }
+        };
+        let client = self.load_balancer.get_client(remote_addr).await?;
+        req.extensions_mut().insert(State {
+            remote_addr,
+            client,
+        });
+        self.inner.call(req).await
+    }
+}
+
+struct AddStateLayer {
+    socket_addr: SocketAddr,
+    load_balancer: LoadBalancer,
+}
+
+impl<S: Service + Send + Sync> Layer<S> for AddStateLayer {
+    type Service = AddStateService<S>;
+    fn layer(&self, inner: S) -> Self::Service {
+        AddStateService {
+            inner,
+            socket_addr: self.socket_addr,
+            load_balancer: self.load_balancer.clone(),
         }
-    };
-    match client.attemp_upgrade(req).await? {
-        UpgradeStatus::Upgraded(res) => Ok(res),
-        UpgradeStatus::NotUpgraded(req) => {
-            let connection = client.get().await?;
-            connection.send_request(req).await
+    }
+}
+
+struct ProxyService;
+
+#[async_trait]
+impl Service for ProxyService {
+    async fn call(&self, req: Request<Incoming>) -> FaucetResult<Response<ExclusiveBody>> {
+        let state = req
+            .extensions()
+            .get::<State>()
+            .expect("State not found")
+            .clone();
+        match state.client.attemp_upgrade(req).await? {
+            UpgradeStatus::Upgraded(res) => Ok(res),
+            UpgradeStatus::NotUpgraded(req) => {
+                let connection = state.client.get().await?;
+                connection.send_request(req).await
+            }
         }
     }
 }

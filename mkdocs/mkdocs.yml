@@ -1,0 +1,46 @@
+site_name: faucet
+site_dir: target
+site_url: https://andyquinterom.github.io/faucet/
+repo_url: https://github.com/andyquinterom/faucet
+theme:
+  name: material
+  palette:
+    scheme: faucet
+  logo: figures/faucet.png
+  features:
+    - content.code.copy
+docs_dir: docs
+plugins:
+  - search
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+          nav:
+            - Home: index.md
+            - Installation: install.md
+            - Getting Started: getting_started.md
+            - Options: options.md
+            - faucet in Containers: in_containers.md
+            - Logging: logging.md
+        - locale: es
+          default: false
+          name: Español
+          build: true
+          nav:
+            - Inicio: index.md
+            - Instalación: install.md
+            - Inicio Rápido: getting_started.md
+            - Opciones: options.md
+            - faucet en Contenedores: in_containers.md
+            - Logging: logging.md
+
+markdown_extensions:
+  - attr_list
+  - md_in_html
+
+extra_css:
+  - stylesheets/extra.css

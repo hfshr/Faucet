@@ -1,8 +1,9 @@
 use super::LoadBalancingStrategy;
 use crate::client::Client;
 use crate::error::FaucetResult;
+use crate::worker::WorkerState;
 use async_trait::async_trait;
-use std::net::{IpAddr, SocketAddr};
+use std::net::IpAddr;
 use std::sync::atomic::AtomicUsize;
 
 struct Targets {
@@ -10,23 +11,25 @@ struct Targets {
     index: AtomicUsize,
 }
 
+// 500us is the time it takes for the round robin to move to the next target
+// in the unlikely event that the target is offline
+const WAIT_TIME_UNTIL_RETRY: std::time::Duration = std::time::Duration::from_micros(500);
+
 impl Targets {
-    fn new(targets: impl AsRef<[SocketAddr]>) -> FaucetResult<Self> {
-        let targets = targets
-            .as_ref()
-            .iter()
-            .map(|addr| Client::builder(*addr).build())
-            .collect::<FaucetResult<Box<[Client]>>>()?;
-        let targets = Box::leak(targets);
+    fn new(workers_state: &[WorkerState]) -> FaucetResult<Self> {
+        let mut targets = Vec::new();
+        for state in workers_state {
+            let client = Client::builder(state.clone()).build()?;
+            targets.push(client);
+        }
+        let targets = Box::leak(targets.into_boxed_slice());
         Ok(Targets {
             targets,
             index: AtomicUsize::new(0),
         })
     }
     fn next(&self) -> Client {
-        let index = self
-            .index
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let index = self.index.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         self.targets[index % self.targets.len()].clone()
     }
 }
@@ -36,7 +39,7 @@ pub struct RoundRobin {
 }
 
 impl RoundRobin {
-    pub(crate) fn new(targets: impl AsRef<[SocketAddr]>) -> FaucetResult<Self> {
+    pub(crate) fn new(targets: &[WorkerState]) -> FaucetResult<Self> {
         Ok(Self {
             targets: Targets::new(targets)?,
         })
@@ -46,6 +49,13 @@ impl RoundRobin {
 #[async_trait]
 impl LoadBalancingStrategy for RoundRobin {
     async fn entry(&self, _ip: IpAddr) -> Client {
-        self.targets.next()
+        let mut client = self.targets.next();
+        loop {
+            if client.is_online() {
+                break client;
+            }
+            tokio::time::sleep(WAIT_TIME_UNTIL_RETRY).await;
+            client = self.targets.next();
+        }
     }
 }
