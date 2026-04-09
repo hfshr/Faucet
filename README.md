@@ -45,6 +45,14 @@ To start a plumber API, simply specify the directory containing the `'plumber.R'
 faucet start --dir /path/to/plumber/api
 ```
 
+### Start a plumber2 API
+
+To start a plumber2 API, specify the directory containing your `main.R` entrypoint, or set the type explicitly.
+
+```bash
+faucet start --dir /path/to/plumber2/api --type plumber2
+```
+
 ### Start a Shiny Application
 
 To start a Shiny Application, specify the directory containing the `'app.R'` file. faucet will automatically detect the file and start the application.
@@ -98,7 +106,7 @@ faucet start --dir /path/to/your/app --workers 4
 
 ### Pick a Load Balancing Strategy
 
-faucet supports multiple load balancing strategies. By default, faucet will use Round Robin for stateless applications (Plumber, FastAPI) and IP Hash for stateful ones (Shiny). To change the strategy, use the `--strategy` flag.
+faucet supports multiple load balancing strategies. By default, faucet will use Round Robin for stateless applications (Plumber, plumber2, FastAPI) and IP Hash for stateful ones (Shiny). To change the strategy, use the `--strategy` flag.
 
 ```bash
 faucet start --dir /path/to/plumber/api --strategy cookie-hash
@@ -110,6 +118,7 @@ By default, faucet will try to detect the type of application based on the files
 
 ```bash
 faucet start --dir /path/to/plumber/api --type plumber
+faucet start --dir /path/to/plumber2/api --type plumber2
 faucet start --dir /path/to/shiny/app --type shiny
 faucet start --dir /path/to/fastapi/app --type fast-api
 faucet start --qmd /path/to/example.qmd --type quarto-shiny

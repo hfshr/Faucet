@@ -46,8 +46,8 @@ route = "/my_application/"
 
 # The type of application.
 # (Required)
-# Possible values: "plumber", "shiny", "quarto-shiny"
-# Aliases like "Plumber", "Shiny", "QuartoShiny" are also accepted.
+# Possible values: "plumber", "plumber2", "shiny", "quarto-shiny"
+# Aliases like "Plumber", "Plumber2", "Shiny", "QuartoShiny" are also accepted.
 server_type = "shiny"
 
 # The working directory for this specific application.
@@ -79,13 +79,13 @@ strategy = "ip-hash"
 ### Fields Explained:
 
 *   `route` (String, Required): The URL path prefix. **This prefix must end with a trailing slash (e.g., `/app/`, `/api/v1/`) unless it is the root route (`/`)**. Faucet will direct requests starting with this path to the configured application.
-*   `server_type` (String, Required): Determines the type of R application. Must be one of `plumber`, `shiny`, or `quarto-shiny`. Aliases like `Plumber`, `Shiny`, `QuartoShiny` are also accepted.
+*   `server_type` (String, Required): Determines the type of R application. Must be one of `plumber`, `plumber2`, `shiny`, or `quarto-shiny`. Aliases like `Plumber`, `Plumber2`, `Shiny`, `QuartoShiny` are also accepted.
 *   `workdir` (String, Optional): The base working directory for the application. If not specified, it defaults to the directory where Faucet is running (typically where `frouter.toml` is located). Paths for `app_dir` and `qmd` are typically resolved relative to this.
-*   `app_dir` (String, Optional): A subdirectory within `workdir` that contains the application's main file (e.g., `app.R` for Shiny, `plumber.R` for Plumber). For example, if `workdir = "./my_app_collection"` and `app_dir = "specific_app_src"`, Faucet will look for `./my_app_collection/specific_app_src/app.R`. If the main file is directly in `workdir`, you can omit this or use `app_dir = "."`.
+*   `app_dir` (String, Optional): A subdirectory within `workdir` that contains the application's main file (e.g., `app.R` for Shiny, `plumber.R` for Plumber, `main.R` for plumber2). For example, if `workdir = "./my_app_collection"` and `app_dir = "specific_app_src"`, Faucet will look for `./my_app_collection/specific_app_src/app.R`. If the main file is directly in `workdir`, you can omit this or use `app_dir = "."`.
 *   `workers` (Integer, Required): The number of R worker processes to launch for this specific route. Must be a positive integer.
 *   `strategy` (String, Optional): The load balancing strategy for this route.
     *   For `shiny` and `quarto-shiny` apps, `ip-hash` is generally recommended and is the default to ensure session persistence.
-    *   For `plumber` APIs, `round-robin` is the default.
+    *   For `plumber` and `plumber2` APIs, `round-robin` is the default.
     *   Available options: `round-robin`, `ip-hash`, `cookie-hash`.
 *   `qmd` (String, Optional): If `server_type` is `quarto-shiny`, this field is required and must specify the path to the `.qmd` file. This path is typically relative to `workdir`.
 
@@ -160,6 +160,16 @@ server_type = "plumber" # Note: "Plumber" (capitalized) is also accepted
 workdir = "./api"
 strategy = "round-robin"
 
+# Route for a plumber2 API.
+# `workdir` is "./api-v2". Faucet looks for main.R
+# in examples/faucet-router-example-main/api-v2/main.R
+[[route]]
+route = "/api-v2/"
+workers = 1
+server_type = "plumber2" # Note: "Plumber2" (capitalized) is also accepted
+workdir = "./api-v2"
+strategy = "round-robin"
+
 # Root route for the main Shiny application.
 # `workdir` defaults to "." (where frouter.toml is).
 # Faucet looks for app.R in examples/faucet-router-example-main/app.R
@@ -177,9 +187,9 @@ With the configuration above, if Faucet is running on `http://localhost:3838` fr
  - Requests to `http://localhost:3838/text/` would be routed to the Shiny app in the `text` subdirectory.
  - Requests to `http://localhost:3838/qmd/` would be routed to the `old_faithful.qmd` Quarto Shiny document.
  - Requests to `http://localhost:3838/api/echo?msg=hello` would be routed to the Plumber API in the `api` subdirectory (the API would see `/echo?msg=hello`).
+ - Requests to `http://localhost:3838/api-v2/echo?msg=hello` would be routed to the plumber2 API in the `api-v2` subdirectory (the API would see `/echo?msg=hello`).
  - Requests to `http://localhost:3838/` would be routed to the `app.R` in the root of the `faucet-router-example-main` directory.
 
 **Note on Route Order:** Remember that if you have routes with overlapping base paths (e.g., `/data/specific/` and `/data/`), you must list the more specific route (`/data/specific/`) *before* the more general route (`/data/`) in your `frouter.toml` file. Otherwise, the general route `/data/` would match requests intended for `/data/specific/`, and the specific route would never be reached. The root route `/` should typically be the last entry.
 
 This router mode provides a flexible way to manage and serve multiple R applications efficiently using a single Faucet instance.
-

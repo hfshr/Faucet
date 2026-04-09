@@ -197,6 +197,7 @@ Cookie Hash utiliza una cookie para identificar al worker al que se debe enviar 
 - Valores posibles:
   - `auto`
   - `plumber`
+  - `plumber2`
   - `shiny`
   - `quarto-shiny`
   - `fast-api`
@@ -207,14 +208,19 @@ El tipo de servidor a ejecutar. Se utiliza para determinar la estrategia correct
 
 Auto intentará determinar el tipo de servidor basándose en el contenido del directorio especificado por `--dir`.
 
-- Si el directorio contiene un archivo `plumber.R` o `entrypoint.R`, se asumirá que es un servidor Plumber.
-- Si el directorio contiene un archivo `app.R`, o ambos archivos `server.R` y `ui.R`, se asumirá que es un servidor Shiny.
 - Si se proporciona un archivo `.qmd` a través del argumento `--qmd`, o si `FAUCET_QMD` está establecido, se asumirá que es una aplicación Quarto Shiny.
+- Si el directorio contiene un archivo `plumber.R` o `entrypoint.R`, se asumirá que es un servidor Plumber.
+- Si el directorio contiene un archivo `main.R`, se asumirá que es un servidor plumber2.
+- Si el directorio contiene un archivo `app.R`, o ambos archivos `server.R` y `ui.R`, se asumirá que es un servidor Shiny.
   De lo contrario, faucet saldrá con un error.
 
 #### Plumber
 
 Ejecuta el servidor como una API de Plumber. La estrategia predeterminada es `round-robin`.
+
+#### plumber2
+
+Ejecuta el servidor como una API de plumber2. Faucet espera un archivo `main.R` relativo a `--dir`, o relativo a `--app-dir` si se proporciona. La estrategia predeterminada es `round-robin`.
 
 #### Shiny
 
@@ -234,7 +240,7 @@ Ejecuta el servidor como una aplicación FastAPI. La estrategia predeterminada e
 - Entorno: `FAUCET_DIR`
 - Predeterminado: `.`
 
-El directorio desde el cual ejecutar el servidor. Este debe ser el directorio que contiene el `plumber.R` o el contenido de la aplicación Shiny.
+El directorio desde el cual ejecutar el servidor. Este debe ser el directorio que contiene el `plumber.R`, `main.R` o el contenido de la aplicación Shiny.
 
 ### App Directory (`appDir` de Shiny)
 

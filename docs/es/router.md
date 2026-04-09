@@ -79,13 +79,13 @@ strategy = "ip-hash"
 ### Campos Explicados:
 
 *   `route` (String, Requerido): El prefijo de la ruta URL. **Este prefijo debe terminar con una barra inclinada (ej., `/app/`, `/api/v1/`) a menos que sea la ruta raíz (`/`)**. Faucet dirigirá las solicitudes que comiencen con esta ruta a la aplicación configurada.
-*   `server_type` (String, Requerido): Determina el tipo de aplicación R. Debe ser uno de `plumber`, `shiny` o `quarto-shiny`. Alias como `Plumber`, `Shiny`, `QuartoShiny` también son aceptados.
+*   `server_type` (String, Requerido): Determina el tipo de aplicación R. Debe ser uno de `plumber`, `plumber2`, `shiny` o `quarto-shiny`. Alias como `Plumber`, `Plumber2`, `Shiny`, `QuartoShiny` también son aceptados.
 *   `workdir` (String, Opcional): El directorio de trabajo base para la aplicación. Si no se especifica, por defecto es el directorio donde se está ejecutando Faucet (típicamente donde se encuentra `frouter.toml`). Las rutas para `app_dir` y `qmd` se resuelven típicamente en relación con este.
-*   `app_dir` (String, Opcional): Un subdirectorio dentro de `workdir` que contiene el archivo principal de la aplicación (por ejemplo, `app.R` para Shiny, `plumber.R` para Plumber). Por ejemplo, si `workdir = "./mi_coleccion_apps"` y `app_dir = "app_especifica_src"`, Faucet buscará `./mi_coleccion_apps/app_especifica_src/app.R`. Si el archivo principal está directamente en `workdir`, puedes omitir esto o usar `app_dir = "."`.
+*   `app_dir` (String, Opcional): Un subdirectorio dentro de `workdir` que contiene el archivo principal de la aplicación (por ejemplo, `app.R` para Shiny, `plumber.R` para Plumber, `main.R` para plumber2). Por ejemplo, si `workdir = "./mi_coleccion_apps"` y `app_dir = "app_especifica_src"`, Faucet buscará `./mi_coleccion_apps/app_especifica_src/app.R`. Si el archivo principal está directamente en `workdir`, puedes omitir esto o usar `app_dir = "."`.
 *   `workers` (Integer, Requerido): El número de procesos worker de R a lanzar para esta ruta específica. Debe ser un entero positivo.
 *   `strategy` (String, Opcional): La estrategia de balanceo de carga para esta ruta.
     *   Para aplicaciones `shiny` y `quarto-shiny`, generalmente se recomienda `ip-hash` y es el valor por defecto para asegurar la persistencia de la sesión.
-    *   Para APIs `plumber`, `round-robin` es el valor por defecto común.
+    *   Para APIs `plumber` y `plumber2`, `round-robin` es el valor por defecto común.
     *   Opciones disponibles: `round-robin`, `ip-hash`, `cookie-hash`.
 *   `qmd` (String, Opcional): Si `server_type` es `quarto-shiny`, este campo es requerido y debe especificar la ruta al archivo `.qmd`. Esta ruta es típicamente relativa a `workdir`.
 
@@ -160,6 +160,16 @@ server_type = "plumber" # Nota: "Plumber" (con mayúscula) también es aceptado
 workdir = "./api"
 strategy = "round-robin"
 
+# Ruta para una API de plumber2.
+# `workdir` es "./api-v2". Faucet busca main.R
+# en examples/faucet-router-example-main/api-v2/main.R
+[[route]]
+route = "/api-v2/"
+workers = 1
+server_type = "plumber2" # Nota: "Plumber2" (con mayúscula) también es aceptado
+workdir = "./api-v2"
+strategy = "round-robin"
+
 # Ruta raíz para la aplicación Shiny principal.
 # `workdir` por defecto es "." (donde está frouter.toml).
 # Faucet busca app.R en examples/faucet-router-example-main/app.R
@@ -177,6 +187,7 @@ Con la configuración anterior, si Faucet se está ejecutando en `http://localho
  - Las solicitudes a `http://localhost:3838/text/` serían enrutadas a la aplicación Shiny en el subdirectorio `text`.
  - Las solicitudes a `http://localhost:3838/qmd/` serían enrutadas al documento Quarto Shiny `old_faithful.qmd`.
  - Las solicitudes a `http://localhost:3838/api/echo?msg=hola` serían enrutadas a la API de Plumber en el subdirectorio `api` (la API vería `/echo?msg=hola`).
+ - Las solicitudes a `http://localhost:3838/api-v2/echo?msg=hola` serían enrutadas a la API de plumber2 en el subdirectorio `api-v2` (la API vería `/echo?msg=hola`).
  - Las solicitudes a `http://localhost:3838/` serían enrutadas al `app.R` en la raíz del directorio `faucet-router-example-main`.
 
 **Nota sobre el Orden de las Rutas:** Recuerda que si tienes rutas con rutas base superpuestas (ej., `/datos/especifico/` y `/datos/`), debes listar la ruta más específica (`/datos/especifico/`) *antes* que la ruta más general (`/datos/`) en tu archivo `frouter.toml`. De lo contrario, la ruta general `/datos/` coincidiría con las solicitudes destinadas a `/datos/especifico/`, y nunca se alcanzaría la ruta específica. La ruta raíz `/` típicamente debería ser la última entrada.

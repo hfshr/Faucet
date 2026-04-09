@@ -13,6 +13,10 @@ fn is_plumber(dir: &Path) -> bool {
     plumber.exists() || plumber_entrypoint.exists()
 }
 
+fn is_plumber2(dir: &Path) -> bool {
+    dir.join("main.R").exists()
+}
+
 fn is_shiny(dir: &Path) -> bool {
     let shiny_app = dir.join("app.R");
     let shiny_ui = dir.join("ui.R");
@@ -24,6 +28,7 @@ fn is_shiny(dir: &Path) -> bool {
 enum ServerType {
     FastAPI,
     Plumber,
+    Plumber2,
     Shiny,
     QuartoShiny,
     Auto,
@@ -248,11 +253,16 @@ impl StartArgs {
         match self.type_ {
             ServerType::FastAPI => WorkerType::FastAPI,
             ServerType::Plumber => WorkerType::Plumber,
+            ServerType::Plumber2 => WorkerType::Plumber2,
             ServerType::Shiny => WorkerType::Shiny,
             ServerType::QuartoShiny => WorkerType::QuartoShiny,
             ServerType::Auto => {
-                if is_plumber(&self.dir) {
+                if self.qmd.is_some() {
+                    WorkerType::QuartoShiny
+                } else if is_plumber(&self.dir) {
                     WorkerType::Plumber
+                } else if is_plumber2(&self.dir) {
+                    WorkerType::Plumber2
                 } else if is_shiny(&self.dir) {
                     WorkerType::Shiny
                 } else {
@@ -261,5 +271,61 @@ impl StartArgs {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{StartArgs, WorkerType};
+    use crate::cli::{ServerType, Strategy};
+    use std::{
+        fs,
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn temp_dir(name: &str) -> PathBuf {
+        let suffix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("faucet-{name}-{suffix}"));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn base_start_args(dir: PathBuf) -> StartArgs {
+        StartArgs {
+            workers: 1,
+            strategy: Strategy::RoundRobin,
+            type_: ServerType::Auto,
+            dir,
+            app_dir: None,
+            qmd: None,
+            max_rps: None,
+        }
+    }
+
+    #[test]
+    fn auto_detects_plumber2_from_main_r() {
+        let dir = temp_dir("plumber2-auto");
+        fs::write(dir.join("main.R"), "# plumber2 entrypoint").unwrap();
+
+        let worker_type = base_start_args(dir.clone()).server_type();
+
+        fs::remove_dir_all(dir).unwrap();
+        assert_eq!(worker_type, WorkerType::Plumber2);
+    }
+
+    #[test]
+    fn auto_detects_quarto_when_qmd_is_provided() {
+        let dir = temp_dir("quarto-auto");
+        let mut args = base_start_args(dir.clone());
+        args.qmd = Some(PathBuf::from("report.qmd"));
+
+        let worker_type = args.server_type();
+
+        fs::remove_dir_all(dir).unwrap();
+        assert_eq!(worker_type, WorkerType::QuartoShiny);
     }
 }

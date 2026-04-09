@@ -253,6 +253,14 @@ server_type = "Plumber"
 workdir = "./api"
 
 
+# Demonstration of how to serve a plumber2 API
+[[route]]
+route = "/api-v2/"
+workers = 1
+server_type = "Plumber2"
+workdir = "./api-v2"
+
+
 # Demonstration of how to serve a Quarto Shiny application
 [[route]]
 route = "/qmd/"
@@ -269,7 +277,7 @@ server_type = "FastAPI"
 workdir = "./py-api"
 ```
 
-The `server_type` argument defines the type of application you want to deploy; currently, we have: `QuartoShiny`, `Shiny`, `Plumber`, and `FastAPI`.
+The `server_type` argument defines the type of application you want to deploy; currently, we have: `QuartoShiny`, `Shiny`, `Plumber`, `Plumber2`, and `FastAPI`.
 
 In the same configuration file `frouter.toml`, we can define the number of `workers` that each application needs.
 
@@ -287,6 +295,7 @@ All the applications will be on the same port but with different routes, accordi
 - Sliders Shiny [`/sliders/`]: [`http://localhost:3838/sliders/`](http://localhost:3838/sliders/)
 - Text Shiny [`/text/`]: [`http://localhost:3838/text/`](http://localhost:3838/text/)
 - Plumber API [`/api/`]: [`http://localhost:3838/api/__docs__/`](http://localhost:3838/api/__docs__/)
+- plumber2 API [`/api-v2/`]: [`http://localhost:3838/api-v2/`](http://localhost:3838/api-v2/)
 - Quarto Shiny App [`/qmd/`]: [`http://localhost:3838/qmd/`](http://localhost:3838/qmd/)
 - FastAPI App [`/py-api/`]: [`http://localhost:3838/py-api/`](http://localhost:3838/py-api/)
 

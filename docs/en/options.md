@@ -232,6 +232,7 @@ a NAT or share the same IP address.
 - Possible values:
   - `auto`
   - `plumber`
+  - `plumber2`
   - `shiny`
   - `quarto-shiny`
   - `fast-api`
@@ -244,14 +245,19 @@ and how to spawn the workers.
 Auto will attempt to determine the type of server based on the contents of the
 directory specified by `--dir`.
 
-- If the directory contains a `plumber.R` or `entrypoint.R` file, it will be assumed to be a Plumber server.
-- If the directory contains an `app.R`, or both `server.R` and `ui.R` files, it will be assumed to be a Shiny server.
 - If a `.qmd` file is provided via the `--qmd` argument, or if `FAUCET_QMD` is set, it will be assumed to be a Quarto Shiny application.
+- If the directory contains a `plumber.R` or `entrypoint.R` file, it will be assumed to be a Plumber server.
+- If the directory contains a `main.R` file, it will be assumed to be a plumber2 server.
+- If the directory contains an `app.R`, or both `server.R` and `ui.R` files, it will be assumed to be a Shiny server.
   Otherwise, faucet will exit with an error.
 
 #### Plumber
 
 Runs the server as a Plumber API. The default strategy is `round-robin`.
+
+#### plumber2
+
+Runs the server as a plumber2 API. Faucet expects a `main.R` entrypoint relative to `--dir`, or relative to `--app-dir` when provided. The default strategy is `round-robin`.
 
 #### Shiny
 
@@ -273,7 +279,7 @@ Runs the server as a FastAPI application. The default strategy is `round-robin`.
 - Default: `.`
 
 The directory to run the server from. This should be the directory that contains the
-`plumber.R` or Shiny app contents.
+`plumber.R`, `main.R`, or Shiny app contents.
 
 ### App Directory (Shiny `appDir`)
 

@@ -28,6 +28,8 @@ use tokio_util::codec::FramedRead;
 pub enum WorkerType {
     #[serde(alias = "plumber", alias = "Plumber")]
     Plumber,
+    #[serde(alias = "plumber2", alias = "Plumber2")]
+    Plumber2,
     #[serde(alias = "shiny", alias = "Shiny")]
     Shiny,
     #[serde(alias = "quarto-shiny", alias = "QuartoShiny", alias = "quarto_shiny")]
@@ -233,6 +235,37 @@ fn spawn_plumber_worker(config: &WorkerConfig) -> FaucetResult<Child> {
     log_stdio(child, config.target)
 }
 
+fn escape_r_string(value: &str) -> String {
+    value.replace('\\', "/").replace('"', "\\\"")
+}
+
+fn plumber2_entrypoint(config: &WorkerConfig) -> String {
+    let app_dir = config.app_dir.unwrap_or(".");
+    let entrypoint = Path::new(app_dir).join("main.R");
+    escape_r_string(&entrypoint.to_string_lossy())
+}
+
+fn spawn_plumber2_worker(config: &WorkerConfig) -> FaucetResult<Child> {
+    let entrypoint = plumber2_entrypoint(config);
+    let command = format!(
+        r#"
+        plumber2::api("{entrypoint}") |>
+          plumber2::api_run(
+            host = "127.0.0.1",
+            port = {port},
+            block = TRUE,
+            showcase = FALSE,
+            silent = TRUE
+          )
+        "#,
+        entrypoint = entrypoint,
+        port = config.addr.port()
+    );
+    let child = spawn_child_rscript_process(config, command)?;
+
+    log_stdio(child, config.target)
+}
+
 fn spawn_shiny_worker(config: &WorkerConfig) -> FaucetResult<Child> {
     let command = format!(
         r###"
@@ -289,6 +322,7 @@ impl WorkerConfig {
     fn spawn_process(&self) -> FaucetResult<Child> {
         let child_result = match self.wtype {
             WorkerType::Plumber => spawn_plumber_worker(self),
+            WorkerType::Plumber2 => spawn_plumber2_worker(self),
             WorkerType::Shiny => spawn_shiny_worker(self),
             WorkerType::QuartoShiny => spawn_quarto_shiny_worker(self),
             WorkerType::FastAPI => spawn_child_fastapi_server(self),

@@ -43,6 +43,11 @@ fn determine_strategy(server_type: WorkerType, strategy: Option<Strategy>) -> St
                 log::debug!(target: "faucet", "No load balancing strategy specified. Defaulting to round robin for plumber.");
                 Strategy::RoundRobin
             }),
+        WorkerType::Plumber2 =>
+            strategy.unwrap_or_else(|| {
+                log::debug!(target: "faucet", "No load balancing strategy specified. Defaulting to round robin for plumber2.");
+                Strategy::RoundRobin
+            }),
         WorkerType::Shiny | WorkerType::QuartoShiny => match strategy {
             None => {
                 log::debug!(target: "faucet", "No load balancing strategy specified. Defaulting to Cookie Hash for shiny.");
